@@ -18,6 +18,8 @@ const WaveformDisplay: React.FC<WaveformDisplayProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number>();
+  const lastUpdateTimeRef = useRef<number>(0);
+  const updateIntervalMs = 100; // アニメーションの更新間隔（ミリ秒）
 
   const drawWaveform = useCallback((
     ctx: CanvasRenderingContext2D,
@@ -50,7 +52,14 @@ const WaveformDisplay: React.FC<WaveformDisplayProps> = ({
     ctx.stroke();
   }, []);
 
-  const animate = useCallback(() => {
+  const animate = useCallback((time: number) => {
+    if (time - lastUpdateTimeRef.current < updateIntervalMs) {
+      animationFrameRef.current = requestAnimationFrame(animate);
+      return;
+    }
+
+    lastUpdateTimeRef.current = time;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
