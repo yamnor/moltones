@@ -6,7 +6,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "分子の音",
-  description: "分子の基準振動を音に変換するアプリ",
+  description: "分子の振動を音に変換するアプリ",
 };
 
 export default function RootLayout({
