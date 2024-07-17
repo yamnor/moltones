@@ -32,14 +32,14 @@ const useAudio = (molecule: Molecule | null) => {
   }, [molecule]);
 
   const createOscillator = useCallback((freq: number, index: number) => {
-    if (!audioContextRef.current || !mainAnalyserRef.current) return;
+    if (!audioContextRef.current || !mainAnalyserRef.current) return undefined;
 
     const osc = audioContextRef.current.createOscillator();
     const gainNode = audioContextRef.current.createGain();
     const analyser = audioContextRef.current.createAnalyser();
     analyser.fftSize = 2048;
 
-    osc.type = 'sine';
+    osc.type = 'sine' as OscillatorType;
     osc.frequency.setValueAtTime(freq / 10, audioContextRef.current.currentTime);
     osc.connect(gainNode);
     gainNode.connect(analyser);
@@ -79,11 +79,14 @@ const useAudio = (molecule: Molecule | null) => {
 
       if (newIsPlaying[index]) {
         stopOscillator(index);
-        const { osc, gainNode, analyser } = createOscillator(molecule.frequencies[index], index);
-        oscillatorsRef.current[index] = osc;
-        gainNodesRef.current[index] = gainNode;
-        analysersRef.current[index] = analyser;
-        osc.start();
+        const oscillatorData = createOscillator(molecule.frequencies[index], index);
+        if (oscillatorData) {
+          const { osc, gainNode, analyser } = oscillatorData;
+          oscillatorsRef.current[index] = osc;
+          gainNodesRef.current[index] = gainNode;
+          analysersRef.current[index] = analyser;
+          osc.start();
+        }
       } else {
         stopOscillator(index);
       }
