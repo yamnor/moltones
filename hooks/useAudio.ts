@@ -38,7 +38,7 @@ const useAudio = (molecule: Molecule | null) => {
   }, [molecule, setupAudio]);
 
   const createOscillator = useCallback((freq: number, index: number) => {
-    if (!audioContextRef.current || !mainAnalyserRef.current) return;
+    if (!audioContextRef.current || !mainAnalyserRef.current) return null;
 
     const osc = audioContextRef.current.createOscillator();
     const gainNode = audioContextRef.current.createGain();
@@ -64,11 +64,14 @@ const useAudio = (molecule: Molecule | null) => {
       newIsPlaying[index] = !newIsPlaying[index];
 
       if (newIsPlaying[index]) {
-        const { osc, gainNode, analyser } = createOscillator(molecule.modes[index].frequency, index);
-        oscillatorsRef.current[index] = osc;
-        gainNodesRef.current[index] = gainNode;
-        analysersRef.current[index] = analyser;
-        osc.start();
+        const result = createOscillator(molecule.modes[index].frequency, index);
+        if (result) {
+          const { osc, gainNode, analyser } = result;
+          oscillatorsRef.current[index] = osc;
+          gainNodesRef.current[index] = gainNode;
+          analysersRef.current[index] = analyser;
+          osc.start();
+        }
       } else {
         if (oscillatorsRef.current[index]) {
           oscillatorsRef.current[index]!.stop();
@@ -86,7 +89,6 @@ const useAudio = (molecule: Molecule | null) => {
       }
 
       if (newIsPlaying.every(playing => !playing)) {
-        // すべてのモードが停止された場合、AudioContextを完全にリセット
         setupAudio();
       }
 
@@ -107,7 +109,7 @@ const useAudio = (molecule: Molecule | null) => {
   const getWaveformData = useCallback(() => {
     const mainDataArray = new Float32Array(mainAnalyserRef.current?.fftSize || 0);
     mainAnalyserRef.current?.getFloatTimeDomainData(mainDataArray);
-  
+
     const individualDataArrays = analysersRef.current.map((analyser, index) => {
       if (analyser && isPlaying[index]) {
         const dataArray = new Float32Array(analyser.fftSize);
@@ -116,11 +118,11 @@ const useAudio = (molecule: Molecule | null) => {
       }
       return null;
     });
-  
+
     if (isPlaying.every(playing => !playing)) {
       return { mainDataArray: new Float32Array(mainDataArray.length), individualDataArrays: [] };
     }
-  
+
     return { mainDataArray, individualDataArrays };
   }, [isPlaying]);
 
