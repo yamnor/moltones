@@ -10,7 +10,7 @@ interface ModeControlsProps {
 const ModeControls: React.FC<ModeControlsProps> = ({ molecule, toggleMode, isPlaying }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full mt-8">
-      {molecule.frequencies.map((freq, index) => (
+      {molecule.modes.map((mode, index) => (
         <div key={index} className="bg-white p-4 rounded-lg shadow-md flex flex-col">
           <div className="flex items-center mb-2">
             <span 
@@ -18,7 +18,7 @@ const ModeControls: React.FC<ModeControlsProps> = ({ molecule, toggleMode, isPla
               style={{ backgroundColor: molecule.colors[index] }}
             ></span>
             <span className="text-sm font-medium">
-              {molecule.modeNames[index]} ({freq} cm<sup>-1</sup>)
+              {mode.name} ({mode.frequency} cm<sup>-1</sup>)
             </span>
           </div>
           <button 

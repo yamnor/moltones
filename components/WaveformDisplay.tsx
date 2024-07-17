@@ -5,15 +5,27 @@ interface WaveformDisplayProps {
   molecule: Molecule;
   getWaveformData: () => { mainDataArray: Float32Array | null, individualDataArrays: (Float32Array | null)[] };
   isPlaying: boolean[];
-  frameRate: number;
+  useIntensities: boolean;
+  intensityType: 'ir' | 'raman';
 }
 
-const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ molecule, getWaveformData, isPlaying, frameRate }) => {
+const WaveformDisplay: React.FC<WaveformDisplayProps> = ({
+  molecule,
+  getWaveformData,
+  isPlaying,
+  useIntensities,
+  intensityType
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const requestRef = useRef<number>();
-  const previousTimeRef = useRef<number>();
+  const animationFrameRef = useRef<number>();
 
-  const drawWaveform = useCallback((ctx: CanvasRenderingContext2D, dataArray: Float32Array, color: string, lineWidth: number) => {
+  const drawWaveform = useCallback((
+    ctx: CanvasRenderingContext2D,
+    dataArray: Float32Array,
+    color: string,
+    lineWidth: number,
+    amplitude: number
+  ) => {
     const { width, height } = ctx.canvas;
     ctx.strokeStyle = color;
     ctx.lineWidth = lineWidth;
@@ -23,7 +35,7 @@ const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ molecule, getWaveform
     let x = 0;
 
     for (let i = 0; i < dataArray.length; i++) {
-      const v = dataArray[i];
+      const v = dataArray[i] * amplitude;
       const y = (0.5 - v * 0.5) * height;
 
       if (i === 0) {
@@ -38,16 +50,7 @@ const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ molecule, getWaveform
     ctx.stroke();
   }, []);
 
-  const animate = useCallback((time: number) => {
-    if (previousTimeRef.current !== undefined) {
-      const deltaTime = time - previousTimeRef.current;
-      if (deltaTime < (1000 / frameRate)) {
-        requestRef.current = requestAnimationFrame(animate);
-        return;
-      }
-    }
-
-    previousTimeRef.current = time;
+  const animate = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -71,25 +74,30 @@ const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ molecule, getWaveform
     }
 
     // Draw combined waveform (background)
-    if (mainDataArray) {
-      drawWaveform(ctx, mainDataArray, 'rgba(30, 41, 59, 0.2)', 3);  // Tailwind's slate-800 with low opacity
+    if (mainDataArray && mainDataArray.some(v => v !== 0)) {
+      drawWaveform(ctx, mainDataArray, 'rgba(30, 41, 59, 0.1)', 3, 1);  // Tailwind's slate-800 with low opacity
     }
 
     // Draw individual mode waveforms
     individualDataArrays.forEach((dataArray, index) => {
       if (isPlaying[index] && dataArray) {
-        drawWaveform(ctx, dataArray, molecule.colors[index], 2);
+        const amplitude = useIntensities
+          ? intensityType === 'ir'
+            ? molecule.modes[index].irIntensity
+            : molecule.modes[index].ramanIntensity
+          : 1;
+        drawWaveform(ctx, dataArray, molecule.colors[index], 2, amplitude);
       }
     });
 
-    requestRef.current = requestAnimationFrame(animate);
-  }, [frameRate, getWaveformData, isPlaying, molecule.colors, drawWaveform]);
+    animationFrameRef.current = requestAnimationFrame(animate);
+  }, [getWaveformData, isPlaying, molecule.colors, molecule.modes, drawWaveform, useIntensities, intensityType]);
 
   useEffect(() => {
-    requestRef.current = requestAnimationFrame(animate);
+    animationFrameRef.current = requestAnimationFrame(animate);
     return () => {
-      if (requestRef.current) {
-        cancelAnimationFrame(requestRef.current);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
       }
     };
   }, [animate]);
@@ -103,7 +111,7 @@ const WaveformDisplay: React.FC<WaveformDisplayProps> = ({ molecule, getWaveform
   }, []);
 
   return (
-    <div className="w-full h-96 mt-8 rounded-lg relative bg-slate-50 shadow-md overflow-hidden">
+    <div className="w-full h-64 mt-8 rounded-lg relative bg-slate-50 shadow-md overflow-hidden">
       <canvas ref={canvasRef} className="w-full h-full" />
     </div>
   );
