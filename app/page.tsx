@@ -6,6 +6,7 @@ import ModeControls from '../components/ModeControls';
 import WaveformDisplay from '../components/WaveformDisplay';
 import { MoleculeData, moleculeData } from '../data/moleculeData';
 import useAudio from '../hooks/useAudio';
+import { Analytics } from "@vercel/analytics/react"
 
 const MAX_FRAME_RATE = 60;
 
