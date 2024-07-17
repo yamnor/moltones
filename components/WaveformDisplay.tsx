@@ -3,7 +3,7 @@ import { Molecule } from '../data/moleculeData';
 
 interface WaveformDisplayProps {
   molecule: Molecule;
-  getWaveformData: () => { mainDataArray: Float32Array | null, individualDataArrays: (Float32Array | null)[] };
+  getWaveformData: () => { mainDataArray: Float32Array, individualDataArrays: (Float32Array | null)[] };
   isPlaying: boolean[];
   useIntensities: boolean;
   intensityType: 'ir' | 'raman';
@@ -82,11 +82,6 @@ const WaveformDisplay: React.FC<WaveformDisplayProps> = ({
       ctx.stroke();
     }
 
-    // Draw combined waveform (background)
-    if (mainDataArray && mainDataArray.some(v => v !== 0)) {
-      drawWaveform(ctx, mainDataArray, 'rgba(30, 41, 59, 0.1)', 3, 1);  // Tailwind's slate-800 with low opacity
-    }
-
     // Draw individual mode waveforms
     individualDataArrays.forEach((dataArray, index) => {
       if (isPlaying[index] && dataArray) {
@@ -98,6 +93,11 @@ const WaveformDisplay: React.FC<WaveformDisplayProps> = ({
         drawWaveform(ctx, dataArray, molecule.colors[index], 2, amplitude);
       }
     });
+
+    // Draw combined waveform (foreground)
+    if (mainDataArray.some(v => v !== 0)) {
+      drawWaveform(ctx, mainDataArray, 'rgba(0, 0, 0, 0.2)', 3, 1);  // Semi-transparent black
+    }
 
     animationFrameRef.current = requestAnimationFrame(animate);
   }, [getWaveformData, isPlaying, molecule.colors, molecule.modes, drawWaveform, useIntensities, intensityType]);

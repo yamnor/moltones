@@ -9,6 +9,7 @@ const useAudio = (molecule: Molecule | null) => {
   const gainNodesRef = useRef<(GainNode | null)[]>([]);
   const analysersRef = useRef<(AnalyserNode | null)[]>([]);
   const mainAnalyserRef = useRef<AnalyserNode | null>(null);
+  const mainGainNodeRef = useRef<GainNode | null>(null);
 
   const setupAudio = useCallback(() => {
     if (audioContextRef.current) {
@@ -17,7 +18,23 @@ const useAudio = (molecule: Molecule | null) => {
     audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     mainAnalyserRef.current = audioContextRef.current.createAnalyser();
     mainAnalyserRef.current.fftSize = 2048;
-    mainAnalyserRef.current.connect(audioContextRef.current.destination);
+    mainGainNodeRef.current = audioContextRef.current.createGain();
+    mainGainNodeRef.current.connect(audioContextRef.current.destination);
+    mainAnalyserRef.current.connect(mainGainNodeRef.current);
+  }, []);
+
+  const mapFrequency = useCallback((freq: number) => {
+    const minFreq = 200;
+    const maxFreq = 1000;
+    const minWavenumber = 400;
+    const maxWavenumber = 4000;
+
+    const logFreq = Math.log(freq);
+    const logMinWavenumber = Math.log(minWavenumber);
+    const logMaxWavenumber = Math.log(maxWavenumber);
+
+    const normalizedFreq = (logFreq - logMinWavenumber) / (logMaxWavenumber - logMinWavenumber);
+    return minFreq * Math.pow(maxFreq / minFreq, normalizedFreq);
   }, []);
 
   useEffect(() => {
@@ -38,7 +55,9 @@ const useAudio = (molecule: Molecule | null) => {
   }, [molecule, setupAudio]);
 
   const createOscillator = useCallback((freq: number, index: number) => {
-    if (!audioContextRef.current || !mainAnalyserRef.current) return null;
+    if (!audioContextRef.current || !mainAnalyserRef.current || !mainGainNodeRef.current) return null;
+
+    const mappedFreq = mapFrequency(freq);
 
     const osc = audioContextRef.current.createOscillator();
     const gainNode = audioContextRef.current.createGain();
@@ -46,15 +65,15 @@ const useAudio = (molecule: Molecule | null) => {
     analyser.fftSize = 2048;
 
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(freq / 10, audioContextRef.current.currentTime);
+    osc.frequency.setValueAtTime(mappedFreq, audioContextRef.current.currentTime);
     osc.connect(gainNode);
     gainNode.connect(analyser);
-    analyser.connect(mainAnalyserRef.current);
+    analyser.connect(mainGainNodeRef.current);
 
     gainNode.gain.setValueAtTime(amplitudes[index], audioContextRef.current.currentTime);
 
     return { osc, gainNode, analyser };
-  }, [amplitudes]);
+  }, [amplitudes, mapFrequency]);
 
   const toggleMode = useCallback((index: number) => {
     if (!molecule) return;
@@ -63,34 +82,39 @@ const useAudio = (molecule: Molecule | null) => {
       const newIsPlaying = [...prev];
       newIsPlaying[index] = !newIsPlaying[index];
 
-      if (newIsPlaying[index]) {
-        const result = createOscillator(molecule.modes[index].frequency, index);
-        if (result) {
-          const { osc, gainNode, analyser } = result;
-          oscillatorsRef.current[index] = osc;
-          gainNodesRef.current[index] = gainNode;
-          analysersRef.current[index] = analyser;
-          osc.start();
+      // Stop all oscillators and disconnect all nodes
+      oscillatorsRef.current.forEach((osc, i) => {
+        if (osc) {
+          osc.stop();
+          osc.disconnect();
+          oscillatorsRef.current[i] = null;
         }
-      } else {
-        if (oscillatorsRef.current[index]) {
-          oscillatorsRef.current[index]!.stop();
-          oscillatorsRef.current[index]!.disconnect();
-          oscillatorsRef.current[index] = null;
+        if (gainNodesRef.current[i]) {
+          gainNodesRef.current[i]!.disconnect();
+          gainNodesRef.current[i] = null;
         }
-        if (gainNodesRef.current[index]) {
-          gainNodesRef.current[index]!.disconnect();
-          gainNodesRef.current[index] = null;
+        if (analysersRef.current[i]) {
+          analysersRef.current[i]!.disconnect();
+          analysersRef.current[i] = null;
         }
-        if (analysersRef.current[index]) {
-          analysersRef.current[index]!.disconnect();
-          analysersRef.current[index] = null;
-        }
-      }
+      });
 
-      if (newIsPlaying.every(playing => !playing)) {
-        setupAudio();
-      }
+      // Recreate audio context and nodes
+      setupAudio();
+
+      // Restart oscillators for all playing modes
+      newIsPlaying.forEach((isPlaying, i) => {
+        if (isPlaying) {
+          const result = createOscillator(molecule.modes[i].frequency, i);
+          if (result) {
+            const { osc, gainNode, analyser } = result;
+            oscillatorsRef.current[i] = osc;
+            gainNodesRef.current[i] = gainNode;
+            analysersRef.current[i] = analyser;
+            osc.start();
+          }
+        }
+      });
 
       return newIsPlaying;
     });
@@ -116,12 +140,8 @@ const useAudio = (molecule: Molecule | null) => {
         analyser.getFloatTimeDomainData(dataArray);
         return dataArray;
       }
-      return null;
+      return new Float32Array(mainAnalyserRef.current?.fftSize || 0);
     });
-
-    if (isPlaying.every(playing => !playing)) {
-      return { mainDataArray: new Float32Array(mainDataArray.length), individualDataArrays: [] };
-    }
 
     return { mainDataArray, individualDataArrays };
   }, [isPlaying]);
